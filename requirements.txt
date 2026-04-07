@@ -1,0 +1,7 @@
+# Database
+pandas
+psycopg2-binary
+sqlalchemy
+
+# Profiling report
+reportlab

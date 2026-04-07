@@ -1,0 +1,163 @@
+name: olist-etl
+
+services:
+
+  # ------------------------------------
+  # PostgreSQL
+  # ------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: postgres_olist
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER:     ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB:       ${PG_DB}
+    ports:
+      - "${PG_PORT}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER}"]
+      interval: 10s
+      retries: 5
+    networks:
+      - olist-network
+
+  # ------------------------------------
+  # Spark Master
+  # ------------------------------------
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark_master_olist
+    user: root
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --host spark-master --port 7077 --webui-port 8080
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./spark/jobs:/app/jobs
+      - ./:/opt/project:delegated
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - olist-network
+
+  # ------------------------------------
+  # Spark Worker
+  # ------------------------------------
+  spark-worker:
+    image: apache/spark:3.5.1
+    container_name: spark_worker_olist
+    user: root
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=1g
+      - SPARK_WORKER_CORES=1
+    volumes:
+      - ./spark/jobs:/app/jobs
+      - ./:/opt/project:delegated
+    depends_on:
+      - spark-master
+    networks:
+      - olist-network
+
+  # ------------------------------------
+  # Airflow
+  # ------------------------------------
+  airflow:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: airflow_olist
+    env_file:
+      - .env
+    environment:
+      AIRFLOW__CORE__AIRFLOW_HOME:         /opt/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES:        "false"
+      AIRFLOW__CORE__EXECUTOR:             LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER}:${PG_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__LOGGING__LOGGING_LEVEL:     INFO
+      AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING: "true"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE: 1800
+      PYTHONPATH:                          /opt/project
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./:/opt/project:delegated
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /opt/project
+    ports:
+      - "${AIRFLOW_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      bash -lc "
+      sleep 10 &&
+      airflow db upgrade &&
+      airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true &&
+      exec airflow standalone"
+    networks:
+      - olist-network
+
+  # ------------------------------------
+  # Pyworker
+  # ------------------------------------
+  pyworker:
+    image: python:3.11-slim
+    container_name: pyworker_olist
+    working_dir: /opt/project
+    volumes:
+      - ./:/opt/project
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /opt/project
+    entrypoint: >
+      bash -lc "pip install --no-cache-dir -r /opt/project/requirements.txt
+      && tail -f /dev/null"
+    networks:
+      - olist-network
+
+  # ------------------------------------
+  # Metabase
+  # ------------------------------------
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_olist
+    ports:
+      - "${METABASE_PORT}:3000"
+    environment:
+      MB_DB_TYPE:   postgres
+      MB_DB_DBNAME: ${PG_DB}
+      MB_DB_PORT:   5432
+      MB_DB_USER:   ${PG_USER}
+      MB_DB_PASS:   ${PG_PASSWORD}
+      MB_DB_HOST:   postgres
+    volumes:
+      - metabase_data:/metabase-data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - olist-network
+
+volumes:
+  pg_data:
+  metabase_data:
+
+networks:
+  olist-network:
+    driver: bridge
