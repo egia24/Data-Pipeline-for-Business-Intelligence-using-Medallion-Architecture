@@ -3,9 +3,11 @@
 Pipeline data end-to-end yang mengolah data transaksi e-commerce dari **Olist** (marketplace terbesar di Brazil) menggunakan arsitektur **Medallion (Bronze → Silver → Gold)** dengan Apache Airflow, Apache Spark, PostgreSQL, dan Metabase — seluruhnya berjalan di atas Docker.
 
 ---
-LINK PPT = https://canva.link/2rlhl3acfnjwhai
-LINK LOGBOOK = https://docs.google.com/spreadsheets/d/1xMoLw9GzghXDG2Vu7kLhQKujbdWC939DmnYLPL1OQhs/edit?usp=sharing
+## Presentasi
+[📊 Link PPT](https://canva.link/2rlhl3acfnjwhai)
 
+## Logbook
+[📝 Link Logbook](https://docs.google.com/spreadsheets/d/1xMoLw9GzghXDG2Vu7kLhQKujbdWC939DmnYLPL1OQhs/edit?usp=sharing)
 ## Latar Belakang
 
 Industri e-commerce menghasilkan data dalam jumlah sangat besar. Tanpa pengelolaan yang baik, data tersebut menjadi sia-sia. Proyek ini hadir untuk mengubah data mentah transaksi, ulasan pelanggan, dan performa seller menjadi insight bisnis yang actionable — mulai dari tren penjualan, revenue, produk terlaris per kategori dan wilayah, hingga pemantauan kepuasan pelanggan dan performa seller.
